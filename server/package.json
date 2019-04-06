@@ -1,0 +1,30 @@
+{
+    "name": "RedditUserTransfer",
+    "version": "1.0.0",
+    "description": "",
+    "main": "init.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "nodemon server.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ys27/RedditUserTransfer.git"
+    },
+    "author": "Andrew An",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/ys27/RedditUserTransfer/issues"
+    },
+    "homepage": "https://github.com/ys27/RedditUserTransfer#readme",
+    "dependencies": {
+        "axios": "^0.18.0",
+        "body-parser": "^1.15.2",
+        "cors": "^2.8.4",
+        "express": "^4.14.0",
+        "express-rate-limit": "^2.11.0",
+        "morgan": "^1.9.0",
+        "node": "^10.7.0",
+        "nodemon": "^1.18.3"
+    }
+}
