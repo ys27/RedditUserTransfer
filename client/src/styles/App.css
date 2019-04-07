@@ -1,5 +1,10 @@
+html, body, #root {
+  height: 100%;
+}
+
 body {
   background-color: #CEC7C7;
+  margin: 0; padding: 0;
 }
 
 .centered-vertical {
@@ -11,6 +16,13 @@ body {
 .app {
   font-family: 'IBM Plex Sans', sans-serif;
   margin: 10px 10px 10px 10px;
+  min-height: 100%;
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  flex: 1
 }
 
 button {
@@ -23,9 +35,14 @@ button {
   letter-spacing: .5px;
   height: 56px;
   width: 250px;
+  margin-top: 20px;
 }
 
 button:hover {
   background-color: #3393DC;
   cursor: pointer;
+}
+
+input[type='checkbox'] {
+  margin-right: 10px;
 }

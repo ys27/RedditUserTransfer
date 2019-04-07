@@ -1,0 +1,12 @@
+.usersFunctions {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+    width: 100%;
+    margin-top: 30px;
+}
+
+.usersFunctions img {
+    width: 15%;
+    height: 15%;
+}

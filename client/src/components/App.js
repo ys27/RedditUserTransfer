@@ -3,8 +3,8 @@ import React from 'react'
 import '../styles/App.css'
 
 import Header from './Header'
-import UserAuthError from './UserAuthError'
 import Description from './Description'
+import UserAuthError from './UserAuthError'
 import UserTransfer from './UserTransfer'
 import RedditLogin from './RedditLogin'
 
@@ -14,7 +14,9 @@ class App extends React.Component {
             <div className='app centered-vertical'>
                 <Header/>
                 <Description/>
-                <Content/>
+                <div className='content'>
+                    <Content/>
+                </div>
             </div>
         )
     }

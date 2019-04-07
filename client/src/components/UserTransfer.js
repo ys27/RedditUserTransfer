@@ -3,6 +3,9 @@ import axios from 'axios'
 import qs from 'qs'
 
 import Loader from './Loader'
+import UsersFunctions from './UsersFunctions'
+
+import '../styles/UserTransfers.css'
 
 import config from '../config'
 
@@ -19,7 +22,10 @@ class UserTransfer extends React.Component {
             preferencesTransferred: '',
             savedContentTransferred: '',
             subscriptionsTransferred: '',
-            transferStarted: false
+            transferStarted: false,
+            transferPrefs: true,
+            transferSaved: true,
+            transferSubs: true
         }
         this.getAccessToken = this.getAccessToken.bind(this)
         this.getUserInfo = this.getUserInfo.bind(this)
@@ -32,6 +38,7 @@ class UserTransfer extends React.Component {
         this.saveOldSavedContent = this.saveOldSavedContent.bind(this)
         this.subscribeOldSubreddits = this.subscribeOldSubreddits.bind(this)
         this.redditOAuthTransmitter = this.redditOAuthTransmitter.bind(this)
+        this.toggleTransfer = this.toggleTransfer.bind(this)
     }
     getAccessToken(accountType, callback) {
         const accessToken = sessionStorage.getItem(`RUT::${accountType}_USER_ACCESS_TOKEN`)
@@ -103,8 +110,17 @@ class UserTransfer extends React.Component {
         this.redditOAuthTransmitter('get', accountType, `${uri}?after=${after}`)
         .then((response) => {
             const responseData = response.data
+            let redditItems = []
+            for (let item of responseData.children) {
+                redditItems.push({
+                    name: item.data.name,
+                    title: item.data.title,
+                    permalink: `https://reddit.com${item.data.permalink}`,
+                    url: `https://reddit.com${item.data.url}`
+                })
+            }
             this.setState({
-                [stateObject]: [...this.state[stateObject], ...responseData.children]
+                [stateObject]: [...this.state[stateObject], ...redditItems]
             })
             const nextPage = responseData.after
             if (nextPage) {
@@ -119,6 +135,7 @@ class UserTransfer extends React.Component {
             }
         })
     }
+
     transferUserInfo() {
         this.setState({
             preferencesTransferred: 'Transferring preferences...',
@@ -127,9 +144,15 @@ class UserTransfer extends React.Component {
             transferStarted: true
         })
         const accountType = 'NEW'
-        this.patchUserPreferences(accountType)
-        this.saveOldSavedContent(accountType)
-        this.subscribeOldSubreddits(accountType)
+        if (this.state.transferPrefs) {
+            this.patchUserPreferences(accountType)
+        }
+        if (this.state.transferSaved) {
+            this.saveOldSavedContent(accountType)
+        }
+        if (this.state.transferSubs) {
+            this.subscribeOldSubreddits(accountType)
+        }
     }
     patchUserPreferences(accountType) {
         const body = this.state.preferences
@@ -148,7 +171,7 @@ class UserTransfer extends React.Component {
         }
         else {
             const body = {
-                id: this.state.savedContent[index].data.name
+                id: this.state.savedContent[index].name
             }
             this.redditOAuthTransmitter('post', accountType, '/api/save', qs.stringify(body))
             .then(() => {
@@ -161,7 +184,7 @@ class UserTransfer extends React.Component {
     subscribeOldSubreddits(accountType) {
         let subreddits = []
         for (let subreddit of this.state.subscriptions) {
-            subreddits.push(subreddit.data.name)
+            subreddits.push(subreddit.name)
         }
         const sr = subreddits.join(',')
         const body = {
@@ -175,6 +198,7 @@ class UserTransfer extends React.Component {
             })
         })
     }
+
     redditOAuthTransmitter(method, accountType, endpoint, data={}) {
         const headers = {
             'Authorization': `Bearer ${sessionStorage.getItem(`RUT::${accountType}_USER_ACCESS_TOKEN`)}`
@@ -190,35 +214,49 @@ class UserTransfer extends React.Component {
             return response.data
         })
     }
+
+    toggleTransfer(evt) {
+        const state = evt.target.name
+        this.setState({
+            [state]: !this.state[state]
+        })
+    }
     render() {
         return (
             <div className='userTransfer centered-vertical'>
                 {this.state.oldUserSavedContentReady 
                     && this.state.oldUserSubscriptionsReady 
                         && this.state.oldUserPrefsReady ? 
-                    <div className='centered-vertical'>
-                        <div>Loading Complete!</div>
-                        <h3>You have {this.state.savedContent.length} saved content.</h3>
-                        {this.state.savedContent.length === 1000 ? 
-                            <h4>Wondering why you have exactly 1000 saved content? It's Reddit's fault. Reddit will only store 1000 saves.</h4> : null
-                        }
+                    <div>
+                        <UsersFunctions/>
                         <div className='centered-vertical'>
-                            <h4>First Saved Content</h4>
-                            <div>{this.state.savedContent[0].data.title}</div>
-                            <h4>Most Recently Saved Content</h4>
-                            <div>{this.state.savedContent[this.state.savedContent.length-1].data.title}</div>
+                            <h3>You have {this.state.savedContent.length} saved content.</h3>
+                            {this.state.savedContent.length === 1000 ? 
+                                <h4>Wondering why you have exactly 1000 saved content? It's Reddit's fault. Reddit will only store 1000 saves.</h4> : null
+                            }
+                            <div className='centered-vertical'>
+                                <h4>First Saved Content</h4>
+                                <a href={this.state.savedContent[0].permalink}>{this.state.savedContent[0].title}</a>
+                                <h4>Most Recently Saved Content</h4>
+                                <a href={this.state.savedContent[0].permalink}>{this.state.savedContent[this.state.savedContent.length-1].title}</a>
+                            </div>
+                            <h3>You are subscribed to {this.state.subscriptions.length} subreddits, such as...</h3>
+                            <div className='centered-vertical'>
+                                <a href={this.state.subscriptions[0].url}>{this.state.subscriptions[0].title}</a>
+                                <a href={this.state.subscriptions[1].url}>{this.state.subscriptions[1].title}</a>
+                            </div>
+                            {this.state.transferStarted ? null : 
+                                <div className='transfers centered-vertical'>
+                                    <label><input type='checkbox' name='transferPrefs' onChange={this.toggleTransfer} checked={this.state.transferPrefs}/>Transfer Preferences</label>
+                                    <label><input type='checkbox' name='transferSaved' onChange={this.toggleTransfer} checked={this.state.transferSaved}/>Transfer Saved Content</label>
+                                    <label><input type='checkbox' name='transferSubs' onChange={this.toggleTransfer} checked={this.state.transferSubs}/>Transfer Subscribed Subreddits</label>
+                                    <button onClick={this.transferUserInfo}>Transfer!</button>
+                                </div>
+                            }
+                            {this.state.transferPrefs ? <h4>{this.state.preferencesTransferred}</h4> : null}
+                            {this.state.transferSaved ? <h4>{this.state.savedContentTransferred}</h4> : null}
+                            {this.state.transferSubs ? <h4>{this.state.subscriptionsTransferred}</h4> : null}
                         </div>
-                        <h3>You are subscribed to {this.state.subscriptions.length} subreddits.</h3>
-                        <div className='centered-vertical'>
-                            <h4>Some subscribed subreddits</h4>
-                            <div>{this.state.subscriptions[0].data.display_name}</div>
-                            <div>{this.state.subscriptions[1].data.display_name}</div>
-                            <div>{this.state.subscriptions[2].data.display_name}</div>
-                        </div>
-                        {this.state.transferStarted ? null : <button onClick={this.transferUserInfo}>Transfer!</button>}
-                        <h4>{this.state.preferencesTransferred}</h4>
-                        <h4>{this.state.savedContentTransferred}</h4>
-                        <h4>{this.state.subscriptionsTransferred}</h4>
                     </div> : <Loader oldUser={sessionStorage.getItem('RUT::OLD_USER_NAME')}/>
                 }
             </div>

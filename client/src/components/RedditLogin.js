@@ -5,6 +5,8 @@ import '../styles/RedditLogin.css'
 
 import config from '../config'
 
+import redditIcon from '../images/redditIcon.png'
+
 class RedditLogin extends React.Component {
     constructor() {
         super()
@@ -35,7 +37,7 @@ class RedditLogin extends React.Component {
                         </div> : null
                     }
                 </div>
-                <button onClick={this.loginReddit}><img src='https://images-eu.ssl-images-amazon.com/images/I/418PuxYS63L.png' alt='redditIcon'/><div>SIGN IN</div></button>
+                <button onClick={this.loginReddit}><img src={redditIcon} alt='redditIcon'/><div>SIGN IN</div></button>
             </div>
         )
     }
