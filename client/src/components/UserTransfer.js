@@ -9,6 +9,8 @@ import '../styles/UserTransfers.css'
 
 import config from '../config'
 
+const apiInterval = 100
+
 class UserTransfer extends React.Component {
     constructor() {
         super()
@@ -192,7 +194,7 @@ class UserTransfer extends React.Component {
             .then(() => {
                 setTimeout(() => {
                     this.saveOldSavedContent(accountType, index+1)
-                }, 1200)
+                }, apiInterval)
             })
         }
     }
@@ -235,7 +237,7 @@ class UserTransfer extends React.Component {
             .then(() => {
                 setTimeout(() => {
                     this.reallyRemoveAllSavedContent(accountType, index+1)
-                }, 1200)
+                }, apiInterval)
             })
         }
     }
