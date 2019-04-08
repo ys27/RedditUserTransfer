@@ -26,10 +26,13 @@ class UserTransfer extends React.Component {
             preferencesTransferred: '',
             savedContentTransferred: '',
             subscriptionsTransferred: '',
+            savedContentRemoved: '',
+            unsubscribed: '',
             transferStarted: false,
             transferPrefs: true,
             transferSaved: true,
-            transferSubs: true
+            transferSubs: true,
+            removingAccountType: ''
         }
         this.getAccessToken = this.getAccessToken.bind(this)
         this.getUserInfo = this.getUserInfo.bind(this)
@@ -42,6 +45,8 @@ class UserTransfer extends React.Component {
         this.patchUserPreferences = this.patchUserPreferences.bind(this)
         this.saveOldSavedContent = this.saveOldSavedContent.bind(this)
         this.subscribeOldSubreddits = this.subscribeOldSubreddits.bind(this)
+        this.reallyRemoveAllSavedContent = this.reallyRemoveAllSavedContent.bind(this)
+        this.reallyUnsubscribeAll = this.reallyUnsubscribeAll.bind(this)
         this.redditOAuthTransmitter = this.redditOAuthTransmitter.bind(this)
         this.toggleTransfer = this.toggleTransfer.bind(this)
     }
@@ -209,6 +214,61 @@ class UserTransfer extends React.Component {
         })
     }
 
+    reallyRemoveAllSavedContent(accountType, index=0) {
+        const savedContent = (accountType === 'OLD' ? this.state.oldUserSavedContent : this.state.newUserSavedContent)
+        if (savedContent.length <= index) {
+            this.setState({
+                savedContentRemoved: 'Removing saved content complete!'
+            })
+        }
+        else {
+            if (index === 0) {
+                this.setState({
+                    removingAccountType: accountType,
+                    savedContentRemoved: 'Removing saved content...'
+                })
+            }
+            const body = {
+                id: savedContent[index].name
+            }
+            this.redditOAuthTransmitter('post', accountType, '/api/unsave', qs.stringify(body))
+            .then(() => {
+                setTimeout(() => {
+                    this.reallyRemoveAllSavedContent(accountType, index+1)
+                }, 1200)
+            })
+        }
+    }
+    reallyUnsubscribeAll(accountType) {
+        this.setState({
+            removingAccountType: accountType,
+            unsubscribed: 'Unsubscribing from all subreddits...'
+        })
+        const subscriptions = (accountType === 'OLD' ? this.state.oldUserSubscriptions : this.state.newUserSubscriptions)
+        let subreddits = []
+        for (let subreddit of subscriptions) {
+            subreddits.push(subreddit.name)
+        }
+        if (subreddits.length === 0) {
+            this.setState({
+                unsubscribed: 'Unsubscribing subreddits complete!'
+            })
+        }
+        else {
+            const sr = subreddits.join(',')
+            const body = {
+                action: 'unsub',
+                sr
+            }
+            this.redditOAuthTransmitter('post', accountType, '/api/subscribe', qs.stringify(body))
+            .then(() => {
+                this.setState({
+                    unsubscribed: 'Unsubscribing subreddits complete!'
+                })
+            })
+        }
+    }
+
     redditOAuthTransmitter(method, accountType, endpoint, data={}) {
         const headers = {
             'Authorization': `Bearer ${sessionStorage.getItem(`RUT::${accountType}_USER_ACCESS_TOKEN`)}`
@@ -240,24 +300,42 @@ class UserTransfer extends React.Component {
                     <div>
                         {this.state.newUserSavedContentReady
                             && this.state.newUserSubscriptionsReady ?
-                                <UsersFunctions/> : null
+                                <div>
+                                    <UsersFunctions 
+                                        reallyRemoveAllSavedContent={this.reallyRemoveAllSavedContent}
+                                        reallyUnsubscribeAll={this.reallyUnsubscribeAll}
+                                        removingAccountType={this.state.removingAccountType}
+                                        savedContentRemoved={this.state.savedContentRemoved}
+                                        unsubscribed={this.state.unsubscribed}
+                                    />
+                                </div> : null
                         }
                         <div className='centered-vertical'>
-                            <h3>You have {this.state.oldUserSavedContent.length} saved content.</h3>
-                            {this.state.oldUserSavedContent.length === 1000 ? 
-                                <h4>Wondering why you have exactly 1000 saved content? It's Reddit's fault. Reddit will only store 1000 saves.</h4> : null
+                            {this.state.oldUserSavedContent.length > 0 ? 
+                                <div className='centered-vertical'>
+                                    <h3>You have {this.state.oldUserSavedContent.length} saved content.</h3>
+                                    {this.state.oldUserSavedContent.length === 1000 ? 
+                                        <h4>Wondering why you have exactly 1000 saved content? It's Reddit's fault. Reddit will only store 1000 saves.</h4> : null
+                                    }
+                                    <div className='centered-vertical'>
+                                        <h4>First Saved Content</h4>
+                                        <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[0].title}</a>
+                                        <h4>Most Recently Saved Content</h4>
+                                        <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[this.state.oldUserSavedContent.length-1].title}</a>
+                                    </div>
+                                </div> : 
+                                <h3>You have no saved content.</h3>
                             }
-                            <div className='centered-vertical'>
-                                <h4>First Saved Content</h4>
-                                <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[0].title}</a>
-                                <h4>Most Recently Saved Content</h4>
-                                <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[this.state.oldUserSavedContent.length-1].title}</a>
-                            </div>
-                            <h3>You are subscribed to {this.state.oldUserSubscriptions.length} subreddits, such as...</h3>
-                            <div className='centered-vertical'>
-                                <a href={this.state.oldUserSubscriptions[0].url}>{this.state.oldUserSubscriptions[0].title}</a>
-                                <a href={this.state.oldUserSubscriptions[1].url}>{this.state.oldUserSubscriptions[1].title}</a>
-                            </div>
+                            {this.state.oldUserSubscriptions.length > 0 ? 
+                                <div className='centered-vertical'>
+                                    <h3>You are subscribed to {this.state.oldUserSubscriptions.length} subreddits, such as...</h3>
+                                    <div className='centered-vertical'>
+                                        <a href={this.state.oldUserSubscriptions[0].url}>{this.state.oldUserSubscriptions[0].title}</a>
+                                        <a href={this.state.oldUserSubscriptions[1].url}>{this.state.oldUserSubscriptions[1].title}</a>
+                                    </div>
+                                </div> : 
+                                <h3>You are not subscribed to any subreddits.</h3>
+                            }
                             {this.state.transferStarted ? null : 
                                 <div className='transfers centered-vertical'>
                                     <label><input type='checkbox' name='transferPrefs' onChange={this.toggleTransfer} checked={this.state.transferPrefs}/>Transfer Preferences</label>

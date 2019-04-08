@@ -12,3 +12,7 @@
     width: 15%;
     margin-top: -35px;
 }
+
+.modal-backdrop {
+    opacity: 0.5;
+}
