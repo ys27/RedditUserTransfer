@@ -336,8 +336,9 @@ class UserTransfer extends React.Component {
                                 </div> : 
                                 <h3>You are not subscribed to any subreddits.</h3>
                             }
-                            {this.state.transferStarted ? null : 
-                                <div className='transfers centered-vertical'>
+                            {this.state.transferStarted || 
+                                (this.state.oldUserSavedContent.length === 0 && this.state.oldUserSubscriptions.length === 0) ? 
+                                null : <div className='transfers centered-vertical'>
                                     <label><input type='checkbox' name='transferPrefs' onChange={this.toggleTransfer} checked={this.state.transferPrefs}/>Transfer Preferences</label>
                                     <label><input type='checkbox' name='transferSaved' onChange={this.toggleTransfer} checked={this.state.transferSaved}/>Transfer Saved Content</label>
                                     <label><input type='checkbox' name='transferSubs' onChange={this.toggleTransfer} checked={this.state.transferSubs}/>Transfer Subscribed Subreddits</label>
