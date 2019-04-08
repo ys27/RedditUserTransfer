@@ -11,7 +11,7 @@ class RedditLogin extends React.Component {
     constructor() {
         super()
         this.state = {
-            scopes: 'account identity flair modflair subscribe mysubreddits history save'
+            scopes: 'account identity subscribe mysubreddits history save'
         }
         this.loginReddit = this.loginReddit.bind(this)
     }

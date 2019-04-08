@@ -8,13 +8,28 @@ class UsersFunctions extends React.Component {
     render() {
         return (
             <div className='usersFunctions'>
-                <div>
-                    <h3>u/{sessionStorage.getItem('RUT::OLD_USER_NAME')}</h3>
-                </div>
+                <User accountType='OLD'/>
                 <img src={transferArrow} alt='transferArrow'/>
-                <div>
-                    <h3>u/{sessionStorage.getItem('RUT::NEW_USER_NAME')}</h3>
-                </div>
+                <User accountType='NEW'/>
+            </div>
+        )
+    }
+}
+
+class User extends React.Component {
+    constructor() {
+        super()
+        this.state = {
+            unsubscribeText: 'Unsubscribe all subreddits',
+            removeSavedText: 'Remove all saved content'
+        }
+    }
+    render() {
+        return (
+            <div>
+                <h3>/u/{sessionStorage.getItem(`RUT::${this.props.accountType}_USER_NAME`)}</h3>
+                <button>{this.state.unsubscribeText}</button>
+                <button>{this.state.removeSavedText}</button>
             </div>
         )
     }

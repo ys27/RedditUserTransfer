@@ -16,9 +16,13 @@ class UserTransfer extends React.Component {
             oldUserPrefsReady: false,
             oldUserSavedContentReady: false,
             oldUserSubscriptionsReady: false,
-            preferences: {},
-            savedContent: [],
-            subscriptions: [],
+            newUserSavedContentReady: false,
+            newUserSubscriptionsReady: false,
+            oldUserPreferences: {},
+            oldUserSavedContent: [],
+            oldUserSubscriptions: [],
+            newUserSavedContent: [],
+            newUserSubscriptions: [],
             preferencesTransferred: '',
             savedContentTransferred: '',
             subscriptionsTransferred: '',
@@ -30,6 +34,7 @@ class UserTransfer extends React.Component {
         this.getAccessToken = this.getAccessToken.bind(this)
         this.getUserInfo = this.getUserInfo.bind(this)
         this.getOldUserInfo = this.getOldUserInfo.bind(this)
+        this.getNewUserInfo = this.getNewUserInfo.bind(this)
         this.getSavedContent = this.getSavedContent.bind(this)
         this.getSubscribedSubreddits = this.getSubscribedSubreddits.bind(this)
         this.getUserTransferrableInfo = this.getUserTransferrableInfo.bind(this)
@@ -88,14 +93,19 @@ class UserTransfer extends React.Component {
     getOldUserInfo() {
         const accountType = 'OLD'
         this.getPreferences()
-        this.getSavedContent(sessionStorage.getItem('RUT::OLD_USER_NAME'), accountType, 'savedContent', 'oldUserSavedContentReady')
-        this.getSubscribedSubreddits(accountType, 'subscriptions', 'oldUserSubscriptionsReady')
+        this.getSavedContent(sessionStorage.getItem('RUT::OLD_USER_NAME'), accountType, 'oldUserSavedContent', 'oldUserSavedContentReady')
+        this.getSubscribedSubreddits(accountType, 'oldUserSubscriptions', 'oldUserSubscriptionsReady')
+    }
+    getNewUserInfo() {
+        const accountType = 'NEW'
+        this.getSavedContent(sessionStorage.getItem('RUT::NEW_USER_NAME'), accountType, 'newUserSavedContent', 'newUserSavedContentReady')
+        this.getSubscribedSubreddits(accountType, 'newUserSubscriptions', 'newUserSubscriptionsReady')
     }
     getPreferences() {
         this.redditOAuthTransmitter('get', 'OLD', `/api/v1/me/prefs`)
         .then((response) => {
             this.setState({
-                preferences: response,
+                oldUserPreferences: response,
                 oldUserPrefsReady: true
             })
         })
@@ -155,7 +165,7 @@ class UserTransfer extends React.Component {
         }
     }
     patchUserPreferences(accountType) {
-        const body = this.state.preferences
+        const body = this.state.oldUserPreferences
         this.redditOAuthTransmitter('patch', accountType, '/api/v1/me/prefs', body)
         .then(() => {
             this.setState({
@@ -164,14 +174,14 @@ class UserTransfer extends React.Component {
         })
     }
     saveOldSavedContent(accountType, index=0) {
-        if (this.state.savedContent.length <= index) {
+        if (this.state.oldUserSavedContent.length <= index) {
             this.setState({
                 savedContentTransferred: 'Transferring saved content complete!'
             })
         }
         else {
             const body = {
-                id: this.state.savedContent[index].name
+                id: this.state.oldUserSavedContent[index].name
             }
             this.redditOAuthTransmitter('post', accountType, '/api/save', qs.stringify(body))
             .then(() => {
@@ -183,7 +193,7 @@ class UserTransfer extends React.Component {
     }
     subscribeOldSubreddits(accountType) {
         let subreddits = []
-        for (let subreddit of this.state.subscriptions) {
+        for (let subreddit of this.state.oldUserSubscriptions) {
             subreddits.push(subreddit.name)
         }
         const sr = subreddits.join(',')
@@ -228,22 +238,25 @@ class UserTransfer extends React.Component {
                     && this.state.oldUserSubscriptionsReady 
                         && this.state.oldUserPrefsReady ? 
                     <div>
-                        <UsersFunctions/>
+                        {this.state.newUserSavedContentReady
+                            && this.state.newUserSubscriptionsReady ?
+                                <UsersFunctions/> : null
+                        }
                         <div className='centered-vertical'>
-                            <h3>You have {this.state.savedContent.length} saved content.</h3>
-                            {this.state.savedContent.length === 1000 ? 
+                            <h3>You have {this.state.oldUserSavedContent.length} saved content.</h3>
+                            {this.state.oldUserSavedContent.length === 1000 ? 
                                 <h4>Wondering why you have exactly 1000 saved content? It's Reddit's fault. Reddit will only store 1000 saves.</h4> : null
                             }
                             <div className='centered-vertical'>
                                 <h4>First Saved Content</h4>
-                                <a href={this.state.savedContent[0].permalink}>{this.state.savedContent[0].title}</a>
+                                <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[0].title}</a>
                                 <h4>Most Recently Saved Content</h4>
-                                <a href={this.state.savedContent[0].permalink}>{this.state.savedContent[this.state.savedContent.length-1].title}</a>
+                                <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[this.state.oldUserSavedContent.length-1].title}</a>
                             </div>
-                            <h3>You are subscribed to {this.state.subscriptions.length} subreddits, such as...</h3>
+                            <h3>You are subscribed to {this.state.oldUserSubscriptions.length} subreddits, such as...</h3>
                             <div className='centered-vertical'>
-                                <a href={this.state.subscriptions[0].url}>{this.state.subscriptions[0].title}</a>
-                                <a href={this.state.subscriptions[1].url}>{this.state.subscriptions[1].title}</a>
+                                <a href={this.state.oldUserSubscriptions[0].url}>{this.state.oldUserSubscriptions[0].title}</a>
+                                <a href={this.state.oldUserSubscriptions[1].url}>{this.state.oldUserSubscriptions[1].title}</a>
                             </div>
                             {this.state.transferStarted ? null : 
                                 <div className='transfers centered-vertical'>
@@ -264,7 +277,7 @@ class UserTransfer extends React.Component {
     }
     componentDidMount() {
         this.getAccessToken('OLD', () => {this.getOldUserInfo()})
-        this.getAccessToken('NEW', () => {return})
+        this.getAccessToken('NEW', () => {this.getNewUserInfo()})
     }
 }
 
