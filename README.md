@@ -9,8 +9,8 @@ You need to add a client/src/config.json as such:
 
 ```
 {
-    "clientId": "TfzbgEd4MNPSlA",
-    "clientSecret": "mqMn5AaE93q3eK-ekIlIH_dR6VE",
+    "clientId": "",
+    "clientSecret": "",
     "redirectURI": "http://localhost:3000"
 }
 ```
