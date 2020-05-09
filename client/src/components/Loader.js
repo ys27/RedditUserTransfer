@@ -1,13 +1,5 @@
-import React from 'react'
+import React from "react";
 
-class Loader extends React.Component {
-    render() {
-        return (
-            <div>
-                Loading {this.props.oldUser}'s content...
-            </div>
-        )
-    }
-}
+const Loader = ({ oldUser }) => <div>Loading {oldUser}'s content...</div>;
 
-export default Loader
+export default Loader;

@@ -1,365 +1,628 @@
-import React from 'react'
-import axios from 'axios'
-import qs from 'qs'
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import qs from "qs";
 
-import Loader from './Loader'
-import UsersFunctions from './UsersFunctions'
+import Loader from "./Loader";
+import UsersFunctions from "./UsersFunctions";
 
-import '../styles/UserTransfers.css'
+import "../styles/UserTransfers.css";
 
-import config from '../config'
+import config from "../config";
 
-const apiInterval = 100
+const apiInterval = 100;
 
-class UserTransfer extends React.Component {
-    constructor() {
-        super()
-        this.state = {
-            oldUserPrefsReady: false,
-            oldUserSavedContentReady: false,
-            oldUserSubscriptionsReady: false,
-            newUserSavedContentReady: false,
-            newUserSubscriptionsReady: false,
-            oldUserPreferences: {},
-            oldUserSavedContent: [],
-            oldUserSubscriptions: [],
-            newUserSavedContent: [],
-            newUserSubscriptions: [],
-            preferencesTransferred: '',
-            savedContentTransferred: '',
-            subscriptionsTransferred: '',
-            savedContentRemoved: '',
-            unsubscribed: '',
-            transferStarted: false,
-            transferPrefs: true,
-            transferSaved: true,
-            transferSubs: true,
-            removingAccountType: ''
-        }
-        this.getAccessToken = this.getAccessToken.bind(this)
-        this.getUserInfo = this.getUserInfo.bind(this)
-        this.getOldUserInfo = this.getOldUserInfo.bind(this)
-        this.getNewUserInfo = this.getNewUserInfo.bind(this)
-        this.getSavedContent = this.getSavedContent.bind(this)
-        this.getSubscribedSubreddits = this.getSubscribedSubreddits.bind(this)
-        this.getUserTransferrableInfo = this.getUserTransferrableInfo.bind(this)
-        this.transferUserInfo = this.transferUserInfo.bind(this)
-        this.patchUserPreferences = this.patchUserPreferences.bind(this)
-        this.saveOldSavedContent = this.saveOldSavedContent.bind(this)
-        this.subscribeOldSubreddits = this.subscribeOldSubreddits.bind(this)
-        this.reallyRemoveAllSavedContent = this.reallyRemoveAllSavedContent.bind(this)
-        this.reallyUnsubscribeAll = this.reallyUnsubscribeAll.bind(this)
-        this.redditOAuthTransmitter = this.redditOAuthTransmitter.bind(this)
-        this.toggleTransfer = this.toggleTransfer.bind(this)
-    }
-    getAccessToken(accountType, callback) {
-        const accessToken = sessionStorage.getItem(`RUT::${accountType}_USER_ACCESS_TOKEN`)
-        if (accessToken) {
-            this.getUserInfo(accessToken, accountType, callback)
-        }
-        else {
-            const authCode = sessionStorage.getItem(`RUT::${accountType}_USER_ACCESS_CODE`)
-            const body = {
-                grant_type: 'authorization_code',
-                code: authCode,
-                redirect_uri: config.redirectURI,
-                // raw_json: 1,
-                // api_type: 'json'
-            }
-            const headers = {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Authorization': `Basic ${btoa(`${config.clientId}:${config.clientSecret}`)}`
-                }
-            }
-            axios.post('https://www.reddit.com/api/v1/access_token', qs.stringify(body), headers)
-            .then((tokenResponse) => {
-                const accessToken = tokenResponse.data.access_token
-                if (!accessToken) {
-                    window.location.href = '/'
-                }
-                else {
-                    this.getUserInfo(accessToken, accountType, callback)
-                }
-            })
-        }
-    }
-    getUserInfo(accessToken, accountType, callback) {
-        sessionStorage.setItem(`RUT::${accountType}_USER_ACCESS_TOKEN`, accessToken)
-        this.redditOAuthTransmitter('get', accountType, '/api/v1/me')
-        .then((userInfo) => {
-            sessionStorage.setItem(`RUT::${accountType}_USER_NAME`, userInfo.name)
-            callback()
-        })
-        .catch((err) => {
-            console.log(err)
-            console.log('Access Token timed out.')
-            window.location.href = '/'
-        })
-    }
-    getOldUserInfo() {
-        const accountType = 'OLD'
-        this.getPreferences()
-        this.getSavedContent(sessionStorage.getItem('RUT::OLD_USER_NAME'), accountType, 'oldUserSavedContent', 'oldUserSavedContentReady')
-        this.getSubscribedSubreddits(accountType, 'oldUserSubscriptions', 'oldUserSubscriptionsReady')
-    }
-    getNewUserInfo() {
-        const accountType = 'NEW'
-        this.getSavedContent(sessionStorage.getItem('RUT::NEW_USER_NAME'), accountType, 'newUserSavedContent', 'newUserSavedContentReady')
-        this.getSubscribedSubreddits(accountType, 'newUserSubscriptions', 'newUserSubscriptionsReady')
-    }
-    getPreferences() {
-        this.redditOAuthTransmitter('get', 'OLD', `/api/v1/me/prefs`)
-        .then((response) => {
-            this.setState({
-                oldUserPreferences: response,
-                oldUserPrefsReady: true
-            })
-        })
-    }
-    getSavedContent(name, accountType, stateObject, flag, after='') {
-        this.getUserTransferrableInfo(`/user/${name}/saved`, accountType, stateObject, flag, after)
-    }
-    getSubscribedSubreddits(accountType, stateObject, flag, after='') {
-        this.getUserTransferrableInfo('/subreddits/mine/subscriber', accountType, stateObject, flag, after)
-    }
-    getUserTransferrableInfo(uri, accountType, stateObject, flag, after='') {
-        this.redditOAuthTransmitter('get', accountType, `${uri}?after=${after}`)
-        .then((response) => {
-            const responseData = response.data
-            let redditItems = []
-            for (let item of responseData.children) {
-                redditItems.push({
-                    name: item.data.name,
-                    title: item.data.title,
-                    permalink: `https://reddit.com${item.data.permalink}`,
-                    url: `https://reddit.com${item.data.url}`
-                })
-            }
-            this.setState({
-                [stateObject]: [...this.state[stateObject], ...redditItems]
-            })
-            const nextPage = responseData.after
-            if (nextPage) {
-                this.getUserTransferrableInfo(uri, accountType, stateObject, flag, nextPage)
-            }
-            else {
-                this.setState({
-                    [stateObject]: this.state[stateObject].reverse(),
-                    [flag]: true
-                })
-                console.log(this.state[stateObject])
-            }
-        })
-    }
+const UserTransfer = () => {
+	const [oldUser, setOldUser] = useState({
+		prefs: {
+			ready: false,
+			data: {},
+			transferred: "",
+			transferEnabled: true,
+		},
+		savedContent: {
+			ready: false,
+			data: [],
+			removed: "",
+			transferred: "",
+			transferEnabled: true,
+		},
+		subscriptions: {
+			ready: false,
+			data: [],
+			removed: "",
+			transferred: "",
+			transferEnabled: true,
+		},
+	});
+	const [newUser, setNewUser] = useState({
+		savedContent: {
+			ready: false,
+			data: [],
+		},
+		subscriptions: {
+			ready: false,
+			data: [],
+		},
+	});
 
-    transferUserInfo() {
-        this.setState({
-            preferencesTransferred: 'Transferring preferences...',
-            savedContentTransferred: 'Transferring saved content...',
-            subscriptionsTransferred: 'Transferring subscriptions...',
-            transferStarted: true
-        })
-        const accountType = 'NEW'
-        if (this.state.transferPrefs) {
-            this.patchUserPreferences(accountType)
-        }
-        if (this.state.transferSaved) {
-            this.saveOldSavedContent(accountType)
-        }
-        if (this.state.transferSubs) {
-            this.subscribeOldSubreddits(accountType)
-        }
-    }
-    patchUserPreferences(accountType) {
-        const body = this.state.oldUserPreferences
-        this.redditOAuthTransmitter('patch', accountType, '/api/v1/me/prefs', body)
-        .then(() => {
-            this.setState({
-                preferencesTransferred: 'Transferring preferences complete!'
-            })
-        })
-    }
-    saveOldSavedContent(accountType, index=0) {
-        if (this.state.oldUserSavedContent.length <= index) {
-            this.setState({
-                savedContentTransferred: 'Transferring saved content complete!'
-            })
-        }
-        else {
-            const body = {
-                id: this.state.oldUserSavedContent[index].name
-            }
-            this.redditOAuthTransmitter('post', accountType, '/api/save', qs.stringify(body))
-            .then(() => {
-                setTimeout(() => {
-                    this.saveOldSavedContent(accountType, index+1)
-                }, apiInterval)
-            })
-        }
-    }
-    subscribeOldSubreddits(accountType) {
-        let subreddits = []
-        for (let subreddit of this.state.oldUserSubscriptions) {
-            subreddits.push(subreddit.name)
-        }
-        const sr = subreddits.join(',')
-        const body = {
-            action: 'sub',
-            sr
-        }
-        this.redditOAuthTransmitter('post', accountType, '/api/subscribe', qs.stringify(body))
-        .then(() => {
-            this.setState({
-                subscriptionsTransferred: 'Transferring subscriptions complete!'
-            })
-        })
-    }
+	const [transferStarted, setTransferStarted] = useState(false);
+	const [accountTypeToRemove, setaccountTypeToRemove] = useState("");
 
-    reallyRemoveAllSavedContent(accountType, index=0) {
-        const savedContent = (accountType === 'OLD' ? this.state.oldUserSavedContent : this.state.newUserSavedContent)
-        if (savedContent.length <= index) {
-            this.setState({
-                savedContentRemoved: 'Removing saved content complete!'
-            })
-        }
-        else {
-            if (index === 0) {
-                this.setState({
-                    removingAccountType: accountType,
-                    savedContentRemoved: 'Removing saved content...'
-                })
-            }
-            const body = {
-                id: savedContent[index].name
-            }
-            this.redditOAuthTransmitter('post', accountType, '/api/unsave', qs.stringify(body))
-            .then(() => {
-                setTimeout(() => {
-                    this.reallyRemoveAllSavedContent(accountType, index+1)
-                }, apiInterval)
-            })
-        }
-    }
-    reallyUnsubscribeAll(accountType) {
-        this.setState({
-            removingAccountType: accountType,
-            unsubscribed: 'Unsubscribing from all subreddits...'
-        })
-        const subscriptions = (accountType === 'OLD' ? this.state.oldUserSubscriptions : this.state.newUserSubscriptions)
-        let subreddits = []
-        for (let subreddit of subscriptions) {
-            subreddits.push(subreddit.name)
-        }
-        if (subreddits.length === 0) {
-            this.setState({
-                unsubscribed: 'Unsubscribing subreddits complete!'
-            })
-        }
-        else {
-            const sr = subreddits.join(',')
-            const body = {
-                action: 'unsub',
-                sr
-            }
-            this.redditOAuthTransmitter('post', accountType, '/api/subscribe', qs.stringify(body))
-            .then(() => {
-                this.setState({
-                    unsubscribed: 'Unsubscribing subreddits complete!'
-                })
-            })
-        }
-    }
+	useEffect(() => {
+		getAccessToken("OLD", () => {
+			getOldUserInfo();
+		});
+		getAccessToken("NEW", () => {
+			getNewUserInfo();
+		});
+	}, []);
 
-    redditOAuthTransmitter(method, accountType, endpoint, data={}) {
-        const headers = {
-            'Authorization': `Bearer ${sessionStorage.getItem(`RUT::${accountType}_USER_ACCESS_TOKEN`)}`
-        }
-        return axios({
-            method,
-            url: `https://oauth.reddit.com${endpoint}`,
-            headers,
-            data
-        })
-        .then((response) => {
-            console.log(response.data)
-            return response.data
-        })
-    }
+	const getAccessToken = async (accountType, callback) => {
+		const accessToken = sessionStorage.getItem(
+			`RUT::${accountType}_USER_ACCESS_TOKEN`
+		);
+		if (accessToken) {
+			getUserInfo(accessToken, accountType, callback);
+		} else {
+			const authCode = sessionStorage.getItem(
+				`RUT::${accountType}_USER_ACCESS_CODE`
+			);
+			const tokenResponse = await axios.post(
+				"https://www.reddit.com/api/v1/access_token",
+				qs.stringify({
+					grant_type: "authorization_code",
+					code: authCode,
+					redirect_uri: config.redirectURI,
+					// raw_json: 1,
+					// api_type: 'json'
+				}),
+				{
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+						Authorization: `Basic ${btoa(
+							`${config.clientId}:${config.clientSecret}`
+						)}`,
+					},
+				}
+			);
+			const accessToken = tokenResponse.data.access_token;
+			if (!accessToken) {
+				window.location.href = "/";
+			} else {
+				getUserInfo(accessToken, accountType, callback);
+			}
+		}
+	};
+	const getUserInfo = async (accessToken, accountType, callback) => {
+		sessionStorage.setItem(
+			`RUT::${accountType}_USER_ACCESS_TOKEN`,
+			accessToken
+		);
+		const userInfo = await redditOAuthTransmitter(
+			"get",
+			accountType,
+			"/api/v1/me"
+		).catch((err) => {
+			console.log(err);
+			console.log("Access Token timed out.");
+			window.location.href = "/";
+		});
+		sessionStorage.setItem(`RUT::${accountType}_USER_NAME`, userInfo.name);
+		callback();
+	};
+	const getOldUserInfo = () => {
+		const accountType = "OLD";
+		getPreferences();
+		getUserTransferrableInfo(
+			`/user/${sessionStorage.getItem("RUT::OLD_USER_NAME")}/saved`,
+			accountType,
+			oldUser.savedContent.data,
+			(data) =>
+				setOldUser({
+					...oldUser,
+					savedContent: {
+						...oldUser.savedContent,
+						data,
+					},
+				}),
+			(ready) =>
+				setOldUser({
+					...oldUser,
+					savedContent: {
+						...oldUser.savedContent,
+						ready,
+					},
+				})
+		);
+		getUserTransferrableInfo(
+			"/subreddits/mine/subscriber",
+			accountType,
+			oldUser.subscriptions.data,
+			(data) =>
+				setOldUser({
+					...oldUser,
+					subscriptions: {
+						...oldUser.subscriptions,
+						data,
+					},
+				}),
+			(ready) =>
+				setOldUser({
+					...oldUser,
+					subscriptions: {
+						...oldUser.subscriptions,
+						ready,
+					},
+				})
+		);
+	};
+	const getNewUserInfo = () => {
+		const accountType = "NEW";
+		getUserTransferrableInfo(
+			`/user/${sessionStorage.getItem("RUT::NEW_USER_NAME")}/saved`,
+			accountType,
+			newUser.savedContent.data,
+			(data) =>
+				setNewUser({
+					...newUser,
+					savedContent: {
+						...oldUser.savedContent,
+						data,
+					},
+				}),
+			(ready) =>
+				setNewUser({
+					...newUser,
+					savedContent: {
+						...newUser.savedContent,
+						ready,
+					},
+				})
+		);
+		getUserTransferrableInfo(
+			"/subreddits/mine/subscriber",
+			accountType,
+			newUser.subscriptions.data,
+			(data) =>
+				setNewUser({
+					...newUser,
+					subscriptions: {
+						...newUser.subscriptions,
+						data,
+					},
+				}),
+			(ready) =>
+				setNewUser({
+					...newUser,
+					subscriptions: {
+						...newUser.subscriptions,
+						ready,
+					},
+				})
+		);
+	};
+	const getPreferences = async () => {
+		const response = await redditOAuthTransmitter(
+			"get",
+			"OLD",
+			`/api/v1/me/prefs`
+		);
+		setOldUser({
+			...oldUser,
+			prefs: {
+				...oldUser.prefs,
+				ready: true,
+				data: response,
+			},
+		});
+	};
+	const getUserTransferrableInfo = async (
+		uri,
+		accountType,
+		stateObject,
+		setStateObject,
+		setFlag,
+		after = ""
+	) => {
+		const response = await redditOAuthTransmitter(
+			"get",
+			accountType,
+			`${uri}?after=${after}`
+		);
+		const responseData = response.data;
+		let redditItems = [];
+		for (let item of responseData.children) {
+			redditItems.push({
+				name: item.data.name,
+				title: item.data.title,
+				permalink: `https://reddit.com${item.data.permalink}`,
+				url: `https://reddit.com${item.data.url}`,
+			});
+		}
+		setStateObject([...stateObject, ...redditItems]);
+		const nextPage = responseData.after;
+		if (nextPage) {
+			getUserTransferrableInfo(
+				uri,
+				accountType,
+				stateObject,
+				setStateObject,
+				setFlag,
+				nextPage
+			);
+		} else {
+			setStateObject(stateObject.reverse());
+			setFlag(true);
+			console.log(stateObject);
+		}
+	};
 
-    toggleTransfer(evt) {
-        const state = evt.target.name
-        this.setState({
-            [state]: !this.state[state]
-        })
-    }
-    render() {
-        return (
-            <div className='userTransfer centered-vertical'>
-                {this.state.oldUserSavedContentReady 
-                    && this.state.oldUserSubscriptionsReady 
-                        && this.state.oldUserPrefsReady ? 
-                    <div>
-                        {this.state.newUserSavedContentReady
-                            && this.state.newUserSubscriptionsReady ?
-                                <div>
-                                    <UsersFunctions 
-                                        reallyRemoveAllSavedContent={this.reallyRemoveAllSavedContent}
-                                        reallyUnsubscribeAll={this.reallyUnsubscribeAll}
-                                        removingAccountType={this.state.removingAccountType}
-                                        savedContentRemoved={this.state.savedContentRemoved}
-                                        unsubscribed={this.state.unsubscribed}
-                                    />
-                                </div> : null
-                        }
-                        <div className='centered-vertical'>
-                            {this.state.oldUserSavedContent.length > 0 ? 
-                                <div className='centered-vertical'>
-                                    <h3>You have {this.state.oldUserSavedContent.length} saved content.</h3>
-                                    {this.state.oldUserSavedContent.length === 1000 ? 
-                                        <h4>Wondering why you have exactly 1000 saved content? It's Reddit's fault. Reddit will only store 1000 saves.</h4> : null
-                                    }
-                                    <div className='centered-vertical'>
-                                        <h4>First Saved Content</h4>
-                                        <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[0].title}</a>
-                                        <h4>Most Recently Saved Content</h4>
-                                        <a href={this.state.oldUserSavedContent[0].permalink}>{this.state.oldUserSavedContent[this.state.oldUserSavedContent.length-1].title}</a>
-                                    </div>
-                                </div> : 
-                                <h3>You have no saved content.</h3>
-                            }
-                            {this.state.oldUserSubscriptions.length > 0 ? 
-                                <div className='centered-vertical'>
-                                    <h3>You are subscribed to {this.state.oldUserSubscriptions.length} subreddits, such as...</h3>
-                                    <div className='centered-vertical'>
-                                        <a href={this.state.oldUserSubscriptions[0].url}>{this.state.oldUserSubscriptions[0].title}</a>
-                                        <a href={this.state.oldUserSubscriptions[1].url}>{this.state.oldUserSubscriptions[1].title}</a>
-                                    </div>
-                                </div> : 
-                                <h3>You are not subscribed to any subreddits.</h3>
-                            }
-                            {this.state.transferStarted || 
-                                (this.state.oldUserSavedContent.length === 0 && this.state.oldUserSubscriptions.length === 0) ? 
-                                null : <div className='transfers centered-vertical'>
-                                    <label><input type='checkbox' name='transferPrefs' onChange={this.toggleTransfer} checked={this.state.transferPrefs}/>Transfer Preferences</label>
-                                    <label><input type='checkbox' name='transferSaved' onChange={this.toggleTransfer} checked={this.state.transferSaved}/>Transfer Saved Content</label>
-                                    <label><input type='checkbox' name='transferSubs' onChange={this.toggleTransfer} checked={this.state.transferSubs}/>Transfer Subscribed Subreddits</label>
-                                    <button onClick={this.transferUserInfo}>Transfer!</button>
-                                </div>
-                            }
-                            {this.state.transferPrefs ? <h4>{this.state.preferencesTransferred}</h4> : null}
-                            {this.state.transferSaved ? <h4>{this.state.savedContentTransferred}</h4> : null}
-                            {this.state.transferSubs ? <h4>{this.state.subscriptionsTransferred}</h4> : null}
-                        </div>
-                    </div> : <Loader oldUser={sessionStorage.getItem('RUT::OLD_USER_NAME')}/>
-                }
-            </div>
-        )
-    }
-    componentDidMount() {
-        this.getAccessToken('OLD', () => {this.getOldUserInfo()})
-        this.getAccessToken('NEW', () => {this.getNewUserInfo()})
-    }
-}
+	const transferUserInfo = () => {
+		setOldUser({
+			...oldUser,
+			prefs: {
+				...oldUser.prefs,
+				transferred: "Transferring preferences...",
+			},
+			savedContent: {
+				...oldUser.savedContent,
+				transferred: "Transferring saved content...",
+			},
+			subscriptions: {
+				...oldUser.subscriptions,
+				transferred: "Transferring subscriptions...",
+			},
+		});
+		setTransferStarted(true);
+		const accountType = "NEW";
+		if (oldUser.prefs.transferEnabled) {
+			patchUserPreferences(accountType);
+		}
+		if (oldUser.savedContent.transferEnabled) {
+			saveOldSavedContent(accountType);
+		}
+		if (oldUser.subscriptions.transferEnabled) {
+			subscribeOldSubreddits(accountType);
+		}
+	};
+	const patchUserPreferences = async (accountType) => {
+		await redditOAuthTransmitter(
+			"patch",
+			accountType,
+			"/api/v1/me/prefs",
+			oldUser.prefs.data
+		);
+		setOldUser({
+			...oldUser,
+			prefs: {
+				...oldUser.prefs,
+				transferred: "Transferring preferences complete!",
+			},
+		});
+	};
+	const saveOldSavedContent = async (accountType, index = 0) => {
+		if (oldUser.savedContent.data.length <= index) {
+			setOldUser({
+				...oldUser,
+				savedContent: {
+					...oldUser.savedContent,
+					transferred: "Transferring saved content complete!",
+				},
+			});
+		} else {
+			await redditOAuthTransmitter(
+				"post",
+				accountType,
+				"/api/save",
+				qs.stringify({
+					id: oldUser.savedContent.data[index].name,
+				})
+			);
+			setTimeout(() => {
+				saveOldSavedContent(accountType, index + 1);
+			}, apiInterval);
+		}
+	};
+	const subscribeOldSubreddits = async (accountType) => {
+		let subreddits = [];
+		for (let subreddit of oldUser.subscriptions.data) {
+			subreddits.push(subreddit.name);
+		}
+		const sr = subreddits.join(",");
+		const body = {
+			action: "sub",
+			sr,
+		};
+		await redditOAuthTransmitter(
+			"post",
+			accountType,
+			"/api/subscribe",
+			qs.stringify(body)
+		);
+		setOldUser({
+			...oldUser,
+			subscriptions: {
+				...oldUser.subscriptions,
+				transferred: "Transferring subscriptions complete!",
+			},
+		});
+	};
 
-export default UserTransfer
+	const reallyRemoveAllSavedContent = async (accountType, index = 0) => {
+		const savedContent =
+			accountType === "OLD"
+				? oldUser.savedContent.data
+				: newUser.savedContent.data;
+		if (savedContent.length <= index) {
+			setOldUser({
+				...oldUser,
+				savedContent: {
+					...oldUser.savedContent,
+					removed: "Removing saved content complete!",
+				},
+			});
+		} else {
+			if (index === 0) {
+				setaccountTypeToRemove(accountType);
+				setOldUser({
+					...oldUser,
+					savedContent: {
+						...oldUser.savedContent,
+						removed: "Removing saved content...",
+					},
+				});
+			}
+			await redditOAuthTransmitter(
+				"post",
+				accountType,
+				"/api/unsave",
+				qs.stringify({
+					id: savedContent[index].name,
+				})
+			);
+			setTimeout(() => {
+				reallyRemoveAllSavedContent(accountType, index + 1);
+			}, apiInterval);
+		}
+	};
+	const reallyUnsubscribeAll = async (accountType) => {
+		setaccountTypeToRemove(accountType);
+		setOldUser({
+			...oldUser,
+			subscriptions: {
+				...oldUser.subscriptions,
+				removed: "Unsubscribing from all subreddits...",
+			},
+		});
+		const subscriptions =
+			accountType === "OLD"
+				? oldUser.subscriptions.data
+				: newUser.subscriptions.data;
+		let subreddits = [];
+		for (let subreddit of subscriptions) {
+			subreddits.push(subreddit.name);
+		}
+		if (subreddits.length === 0) {
+			setOldUser({
+				...oldUser,
+				subscriptions: {
+					...oldUser.subscriptions,
+					removed: "Unsubscribing subreddits complete!",
+				},
+			});
+		} else {
+			await redditOAuthTransmitter(
+				"post",
+				accountType,
+				"/api/subscribe",
+				qs.stringify({
+					action: "unsub",
+					sr: subreddits.join(","),
+				})
+			);
+			setOldUser({
+				...oldUser,
+				subscriptions: {
+					...oldUser.subscriptions,
+					removed: "Unsubscribing subreddits complete!",
+				},
+			});
+		}
+	};
+
+	const redditOAuthTransmitter = async (
+		method,
+		accountType,
+		endpoint,
+		data = {}
+	) => {
+		const response = await axios({
+			method,
+			url: `https://oauth.reddit.com${endpoint}`,
+			headers: {
+				Authorization: `Bearer ${sessionStorage.getItem(
+					`RUT::${accountType}_USER_ACCESS_TOKEN`
+				)}`,
+			},
+			data,
+		});
+		console.log(response.data);
+		return response.data;
+	};
+
+	const toggleTransfer = (evt) => {
+		const set = evt.target.setFunction;
+		const currentState = evt.target.checked;
+		set(!currentState);
+	};
+
+	return (
+		<div className="userTransfer centered-vertical">
+			{oldUser.savedContent.ready &&
+			oldUser.subscriptions.ready &&
+			oldUser.prefs.ready ? (
+				<div>
+					{newUser.savedContent.ready &&
+					newUser.subscriptions.ready ? (
+						<div>
+							<UsersFunctions
+								reallyRemoveAllSavedContent={
+									reallyRemoveAllSavedContent
+								}
+								reallyUnsubscribeAll={reallyUnsubscribeAll}
+								accountTypeToRemove={accountTypeToRemove}
+								savedContentRemoved={
+									oldUser.savedContent.removed
+								}
+								unsubscribed={oldUser.subscriptions.removed}
+							/>
+						</div>
+					) : null}
+					<div className="centered-vertical">
+						{oldUser.savedContent.data.length > 0 ? (
+							<div className="centered-vertical">
+								<h3>
+									You have {oldUser.savedContent.data.length}{" "}
+									saved content.
+								</h3>
+								{oldUser.savedContent.data.length === 1000 ? (
+									<h4>
+										Wondering why you have exactly 1000
+										saved content? It's Reddit's fault.
+										Reddit will only store 1000 saves.
+									</h4>
+								) : null}
+								<div className="centered-vertical">
+									<h4>First Saved Content</h4>
+									<a
+										href={
+											oldUser.savedContent.data[0]
+												.permalink
+										}
+									>
+										{oldUser.savedContent.data[0].title}
+									</a>
+									<h4>Most Recently Saved Content</h4>
+									<a
+										href={
+											oldUser.savedContent.data[0]
+												.permalink
+										}
+									>
+										{
+											oldUser.savedContent.data[
+												oldUser.savedContent.data
+													.length - 1
+											].title
+										}
+									</a>
+								</div>
+							</div>
+						) : (
+							<h3>You have no saved content.</h3>
+						)}
+						{oldUser.subscriptions.data.length > 0 ? (
+							<div className="centered-vertical">
+								<h3>
+									You are subscribed to{" "}
+									{oldUser.subscriptions.data.length}{" "}
+									subreddits, such as...
+								</h3>
+								<div className="centered-vertical">
+									<a href={oldUser.subscriptions.data[0].url}>
+										{oldUser.subscriptions.data[0].title}
+									</a>
+									<a href={oldUser.subscriptions.data[1].url}>
+										{oldUser.subscriptions.data[1].title}
+									</a>
+								</div>
+							</div>
+						) : (
+							<h3>You are not subscribed to any subreddits.</h3>
+						)}
+						{transferStarted ||
+						(oldUser.savedContent.data.length === 0 &&
+							oldUser.subscriptions.data.length === 0) ? null : (
+							<div className="transfers centered-vertical">
+								<label>
+									<input
+										type="checkbox"
+										setFunction={(transferEnabled) =>
+											setOldUser({
+												...oldUser,
+												prefs: {
+													...oldUser.prefs,
+													transferEnabled,
+												},
+											})
+										}
+										onChange={toggleTransfer}
+										checked={oldUser.prefs.transferEnabled}
+									/>
+									Transfer Preferences
+								</label>
+								<label>
+									<input
+										type="checkbox"
+										setFunction={(transferEnabled) =>
+											setOldUser({
+												...oldUser,
+												savedContent: {
+													...oldUser.savedContent,
+													transferEnabled,
+												},
+											})
+										}
+										onChange={toggleTransfer}
+										checked={
+											oldUser.savedContent.transferEnabled
+										}
+									/>
+									Transfer Saved Content
+								</label>
+								<label>
+									<input
+										type="checkbox"
+										setFunction={(transferEnabled) =>
+											setOldUser({
+												...oldUser,
+												subscriptions: {
+													...oldUser.subscriptions,
+													transferEnabled,
+												},
+											})
+										}
+										onChange={toggleTransfer}
+										checked={
+											oldUser.subscriptions
+												.transferEnabled
+										}
+									/>
+									Transfer Subscribed Subreddits
+								</label>
+								<button onClick={transferUserInfo}>
+									Transfer!
+								</button>
+							</div>
+						)}
+						{oldUser.prefs.transferEnabled ? (
+							<h4>{oldUser.prefs.transferred}</h4>
+						) : null}
+						{oldUser.savedContent.transferEnabled ? (
+							<h4>{oldUser.savedContent.transferred}</h4>
+						) : null}
+						{oldUser.subscriptions.transferEnabled ? (
+							<h4>{oldUser.subscriptions.transferred}</h4>
+						) : null}
+					</div>
+				</div>
+			) : (
+				<Loader
+					oldUser={sessionStorage.getItem("RUT::OLD_USER_NAME")}
+				/>
+			)}
+		</div>
+	);
+};
+
+export default UserTransfer;
