@@ -1,4 +1,5 @@
 # RedditUserTransfer
+
 Transfers the transferrable components of a reddit user:
 
 1. Saved posts/comments
@@ -16,3 +17,5 @@ You need to add a client/src/config.json as such:
 ```
 
 Where the client id and secret are for the Reddit API, and the redirect URI is for the site.
+
+The server only exists to serve the static html of the site. It can be run by itself using react-scripts.
