@@ -1,6 +1,6 @@
 # RedditUserTransfer
 
-Transfers the transferrable components of a reddit user:
+Web UI to transfer the transferrable components of a reddit user:
 
 1. Saved posts/comments
 2. Subscribed subreddits
